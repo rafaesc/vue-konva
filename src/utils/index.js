@@ -8,17 +8,9 @@ export function copy(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-export function createListener(obj) {
-  const output = {};
-  Object.keys(obj).forEach((eventName) => {
-    output['on' + eventName] = obj[eventName];
-  });
-  return output;
-}
-
 export function findParentKonva(instance) {
   function re(instance) {
-    if (instance._konvaNode) {
+    if (instance.__konvaNode) {
       return instance;
     }
     if (instance.$parent) {
@@ -30,37 +22,44 @@ export function findParentKonva(instance) {
 }
 
 export function findKonvaNode(instance) {
-  if (!instance) {
+  if (!instance?.component?.ctx) {
     return null;
   }
-  if (instance.$options[konvaNodeMarker]) {
-    return instance.getNode();
+  if (instance?.component?.ctx?.__konvaNode) {
+    return instance.component.ctx.__konvaNode;
   }
-  if (instance.$children.length === 0) {
-    return null;
+  if (instance.component.subTree.__konvaNode) {
+    return instance.component.subTree.__konvaNode
   }
-  return findKonvaNode(instance.$children[0]);
+  return findKonvaNode(instance.component.subTree)
 }
 
-export function checkOrder($vnode, konvaNode) {
+export function checkOrder($, konvaNode) {
   let needRedraw = false;
-  // check indexes
-  // somehow this.$children are not ordered correctly
-  // so we have to dive-in into componentOptions of vnode
-  // also componentOptions.children may have empty nodes, and other non Konva elements so we need to filter them first
 
-  const children = $vnode.componentOptions.children || [];
+  let children = [];
+
+  if ($.subTree.children) {
+    $.subTree.children.forEach((child) => {
+      if (!child.component && Array.isArray(child.children)) {
+        children.push(...child.children);
+      }
+      if (child.component) {
+        children.push(child);
+      }
+    });
+  }
 
   const nodes = [];
   children.forEach(($vnode) => {
-    const konvaNode = findKonvaNode($vnode.componentInstance);
+    const konvaNode = findKonvaNode($vnode);
     if (konvaNode) {
       nodes.push(konvaNode);
     }
 
-    const { elm, componentInstance } = $vnode;
-    if (elm && elm.tagName && componentInstance && !konvaNode) {
-      const name = elm && elm.tagName.toLowerCase();
+    const { el, component } = $vnode;
+    if (el && el.tagName && component && !konvaNode) {
+      const name = el && el.tagName.toLowerCase();
       console.error(
         `vue-konva error: You are trying to render "${name}" inside your component tree. Looks like it is not a Konva node. You can render only Konva components inside the Stage.`
       );
